@@ -1,17 +1,22 @@
 /**
+ * Homography math for the 2-layer photo visualizer.
+ *
+ * Maps a repeating tile texture into a perspective quad (the 4 corner points
+ * of a floor/wall/counter plane in the room photo).
+ */
+
+/**
  * Solves a system of linear equations Ax = B using Gaussian elimination.
  */
 function solveLinearSystem(A, B) {
   const n = B.length;
   for (let i = 0; i < n; i++) {
-    // Find pivot
     let maxRow = i;
     for (let j = i + 1; j < n; j++) {
       if (Math.abs(A[j][i]) > Math.abs(A[maxRow][i])) {
         maxRow = j;
       }
     }
-    // Swap rows
     const tempA = A[i];
     A[i] = A[maxRow];
     A[maxRow] = tempA;
@@ -19,12 +24,10 @@ function solveLinearSystem(A, B) {
     B[i] = B[maxRow];
     B[maxRow] = tempB;
 
-    // Pivot must not be zero
     if (Math.abs(A[i][i]) < 1e-10) {
       return null; // Singular matrix
     }
 
-    // Eliminate below
     for (let j = i + 1; j < n; j++) {
       const factor = A[j][i] / A[i][i];
       B[j] -= factor * B[i];
@@ -34,7 +37,6 @@ function solveLinearSystem(A, B) {
     }
   }
 
-  // Back substitution
   const x = new Array(n).fill(0);
   for (let i = n - 1; i >= 0; i--) {
     let sum = B[i];
@@ -84,24 +86,19 @@ export function transformPoint(x, y, H) {
 }
 
 /**
- * Warps a repeating tile pattern texture into a target quad defined by four corners.
- * Sampling is done in reverse: for every pixel inside the target quad's bounding box,
- * we map it back to the tile space using the inverse homography matrix, sample the color,
- * and draw it on the destination canvas context.
+ * Warps a repeating tile pattern into a target quad defined by four corners.
+ * Sampling is done in reverse: for every pixel inside the target quad's bounding
+ * box, we map it back to tile space with the inverse homography, sample the
+ * color, and write it to the destination canvas context.
  */
-export function warpTextureToQuad(tileImg, dstCorners, dstCanvas, patternType = "grid", groutColor = "#c4c9d0") {
+export function warpTextureToQuad(tileImg, dstCorners, dstCanvas) {
   const W = dstCanvas.width;
   const H = dstCanvas.height;
   const ctx = dstCanvas.getContext("2d");
 
-  // Tile dimensions
   const tw = tileImg.width || tileImg.naturalWidth;
   const th = tileImg.height || tileImg.naturalHeight;
 
-  // Destination corners: dstCorners
-  // Let's map target coordinates back to tile space:
-  // We want to transform target pixel (u, v) -> source pixel (x, y)
-  // So source points are dstCorners, and destination points are [[0, 0], [tw, 0], [tw, th], [0, th]]
   const srcCorners = [
     [0, 0],
     [tw, 0],
@@ -112,15 +109,13 @@ export function warpTextureToQuad(tileImg, dstCorners, dstCanvas, patternType = 
   const invH = getHomography(dstCorners, srcCorners);
   if (!invH) return;
 
-  // Get bounding box of target quad
-  const xs = dstCorners.map(p => p[0]);
-  const ys = dstCorners.map(p => p[1]);
+  const xs = dstCorners.map((p) => p[0]);
+  const ys = dstCorners.map((p) => p[1]);
   const minX = Math.max(0, Math.floor(Math.min(...xs)));
   const maxX = Math.min(W - 1, Math.ceil(Math.max(...xs)));
   const minY = Math.max(0, Math.floor(Math.min(...ys)));
   const maxY = Math.min(H - 1, Math.ceil(Math.max(...ys)));
 
-  // Read offscreen tile pixels
   const tileCvs = document.createElement("canvas");
   tileCvs.width = tw;
   tileCvs.height = th;
@@ -129,48 +124,40 @@ export function warpTextureToQuad(tileImg, dstCorners, dstCanvas, patternType = 
   const tileData = tCtx.getImageData(0, 0, tw, th);
   const tD = tileData.data;
 
-  // Destination image data for the bounding box
-  const dstData = ctx.getImageData(minX, minY, (maxX - minX + 1), (maxY - minY + 1));
+  const dstData = ctx.getImageData(minX, minY, maxX - minX + 1, maxY - minY + 1);
   const dD = dstData.data;
   const dW = dstData.width;
 
-  // Helper to check if a point is inside the polygon (quad)
   function isPointInQuad(x, y, quad) {
     let inside = false;
     for (let i = 0, j = quad.length - 1; i < quad.length; j = i++) {
       const xi = quad[i][0], yi = quad[i][1];
       const xj = quad[j][0], yj = quad[j][1];
       const intersect = ((yi > y) !== (yj > y)) &&
-        (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        (x < ((xj - xi) * (y - yi)) / (yj - yi) + xi);
       if (intersect) inside = !inside;
     }
     return inside;
   }
 
-  // Iterate over destination bounding box
   for (let y = minY; y <= maxY; y++) {
     for (let x = minX; x <= maxX; x++) {
-      if (!isPointInQuad(x, y, dstCorners)) {
-        continue; // Skip pixels outside the quad
-      }
+      if (!isPointInQuad(x, y, dstCorners)) continue;
 
-      // Map back to tile space
       const [tx, ty] = transformPoint(x, y, invH);
 
-      // Repeat pattern lookup (wrapping around tile dimensions)
       let sx = Math.floor(tx) % tw;
       let sy = Math.floor(ty) % th;
       if (sx < 0) sx += tw;
       if (sy < 0) sy += th;
 
-      // Sample pixel color
       const sIdx = (sy * tw + sx) * 4;
       const dIdx = ((y - minY) * dW + (x - minX)) * 4;
 
-      dD[dIdx] = tD[sIdx];         // R
-      dD[dIdx + 1] = tD[sIdx + 1]; // G
-      dD[dIdx + 2] = tD[sIdx + 2]; // B
-      dD[dIdx + 3] = tD[sIdx + 3]; // A
+      dD[dIdx] = tD[sIdx];
+      dD[dIdx + 1] = tD[sIdx + 1];
+      dD[dIdx + 2] = tD[sIdx + 2];
+      dD[dIdx + 3] = tD[sIdx + 3];
     }
   }
 

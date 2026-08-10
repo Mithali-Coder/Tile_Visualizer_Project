@@ -1,17 +1,19 @@
 import { useState } from "react";
-import { LogOut, MonitorPlay, X, RotateCcw } from "lucide-react";
+import { LogOut, MonitorPlay, X, RotateCcw, Brush } from "lucide-react";
 import { useAuth } from "@/features/auth/auth.context.jsx";
 import { useWorkspace } from "@/store/workspace.context.jsx";
 import RoomSelector from "@/features/rooms/components/RoomSelector.jsx";
 import Visualizer from "@/features/visualizer/pages/Visualizer.jsx";
 import TileSwapPanel from "@/features/catalogue/components/TileSwapPanel.jsx";
 import TileCatalogue from "@/features/catalogue/pages/TileCatalogue.jsx";
+import LayoutEditor from "@/features/layouts/pages/LayoutEditor.jsx";
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const { resetAll } = useWorkspace();
   const [present, setPresent] = useState(false);
   const [showCatalogue, setShowCatalogue] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-slate-100">
@@ -28,9 +30,6 @@ export default function Dashboard() {
               <h1 className="text-sm font-extrabold tracking-tight text-slate-900">
                 Tile<span className="text-brand-600">Visualizer</span>
               </h1>
-              <p className="hidden text-[11px] text-slate-400 sm:block">
-                Admin Console
-              </p>
             </div>
           </div>
 
@@ -66,10 +65,17 @@ export default function Dashboard() {
             </button>
             <button
               onClick={logout}
-              className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-800"
             >
               <LogOut size={14} />
-              <span className="hidden md:inline">Sign out</span>
+              Logout
+            </button>
+            <button
+              onClick={() => setShowEditor(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-800"
+            >
+              <Brush size={14} />
+              Editor
             </button>
           </div>
         </div>
@@ -127,6 +133,7 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+      {showEditor && <LayoutEditor onClose={() => setShowEditor(false)} />}
     </div>
   );
 }
