@@ -1,0 +1,220 @@
+# PR category CI — classify a pull request by the code it touches, then run the
+# checks that matter for that category. Every category must pass before the PR
+# can merge.
+#
+# Categories detected from changed paths:
+#   frontend  -> client/**            (runs the Vite production build)
+#   backend   -> server/**, shared/** (runs the node:test suite)
+#   database  -> migrations / *.sql   (data-layer schema validation)
+#   chore     -> docs, scripts, tests, .github, root config (lockfile + doc-link checks)
+#
+# The `quality-gate` job is a stable status check: add it as a REQUIRED check in
+# Settings -> Branches -> develop (or a ruleset) so nothing merges until the
+# category tests pass.
+
+name: CI - PR Category Checks
+
+on:
+  pull_request:
+    branches: [develop, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # --------------------------------------------------------------------------
+  # 1. Categorize the PR from the changed file paths.
+  # --------------------------------------------------------------------------
+  categorize:
+    name: Categorize PR
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.categories.outputs.matrix }}
+      labels: ${{ steps.categories.outputs.labels }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect changed categories
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            frontend:
+              - 'client/**'
+            backend:
+              - 'server/**'
+              - 'shared/**'
+            database:
+              - '**/migrations/**'
+              - '**/prisma/**'
+              - '**/drizzle/**'
+              - '**/*.sql'
+            chore:
+              - 'docs/**'
+              - 'scripts/**'
+              - 'tests/**'
+              - '.github/**'
+              - '*.md'
+              - 'package.json'
+              - 'package-lock.json'
+              - '.gitignore'
+              - '.env.example'
+
+      - name: Build category matrix and labels
+        id: categories
+        shell: bash
+        run: |
+          set -euo pipefail
+          labels=""
+          matrix="[]"
+          add() {
+            if [ -n "$labels" ]; then labels="$labels $1"; else labels="$1"; fi
+            matrix="$(printf '%s' "$matrix" | jq -c --arg c "$1" '. + [$c]')"
+          }
+          [ "${{ steps.filter.outputs.frontend }}" == "true" ] && add frontend
+          [ "${{ steps.filter.outputs.backend }}" == "true" ] && add backend
+          [ "${{ steps.filter.outputs.database }}" == "true" ] && add database
+          [ "${{ steps.filter.outputs.chore }}" == "true" ] && add chore
+          # A PR that matches no filter still gets the chore checks.
+          if [ "$matrix" == "[]" ]; then
+            add chore
+          fi
+          echo "categories matched: $labels"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "labels=$labels" >> "$GITHUB_OUTPUT"
+
+      - name: Label the PR by category
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LABELS: ${{ steps.categories.outputs.labels }}
+        run: |
+          for label in $LABELS; do
+            gh label create "$label" --force 2>/dev/null || true
+            gh pr edit "${{ github.event.pull_request.number }}" --add-label "$label" || true
+          done
+
+  # --------------------------------------------------------------------------
+  # 2. Run the tests for every category the PR touches.
+  # --------------------------------------------------------------------------
+  test:
+    name: Check (${{ matrix.category }})
+    needs: categorize
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        category: ${{ fromJson(needs.categorize.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Frontend - production build
+        if: matrix.category == 'frontend'
+        run: npm run build
+
+      - name: Backend - unit and integration tests
+        if: matrix.category == 'backend'
+        run: npm test
+
+      - name: Database / data layer - schema validation
+        if: matrix.category == 'database'
+        run: |
+          node --input-type=module -e "
+            import { validateLayout } from './shared/schemas/layout.js';
+            const draft = validateLayout({ id: 'x', name: 'x', type: 'photo', status: 'draft', zones: [] });
+            const pub = validateLayout({ id: 'x', name: 'x', type: 'photo', status: 'published', zones: [] });
+            if (!draft.ok || pub.ok) {
+              console.error('Data-layer schema validation regression');
+              process.exit(1);
+            }
+            console.log('Data-layer schema validation passed (no database configured yet).');
+          "
+
+      - name: Chore - package-lock in sync
+        if: matrix.category == 'chore'
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          git diff --exit-code -- package-lock.json
+
+      - name: Chore - local doc links resolve
+        if: matrix.category == 'chore'
+        run: |
+          set -euo pipefail
+          fail=0
+          for f in $(git ls-files '*.md'); do
+            dir=$(dirname "$f")
+            for link in $(grep -oE '\]\([^)]+\)' "$f" | sed 's/.*](//;s/)//' || true); do
+              case "$link" in
+                http://*|https://*|mailto:*|'#'*|'@'*) continue ;;
+                *)
+                  if [ ! -e "$dir/$link" ]; then
+                    echo "Broken link in $f -> $link"
+                    fail=1
+                  fi ;;
+              esac
+            done
+          done
+          exit $fail
+
+  # --------------------------------------------------------------------------
+  # 3. Security scan that always runs, regardless of category.
+  # --------------------------------------------------------------------------
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reject committed .env files
+        run: |
+          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example' | grep -q .; then
+            echo "::error::A .env file is committed. Only .env.example files may be tracked."
+            git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example'
+            exit 1
+          fi
+
+      - name: Reject known secret patterns
+        run: |
+          set -euo pipefail
+          matches=$(git ls-files -z | xargs -0 grep -lE \
+            'AKIA[0-9A-Z]{16}|BEGIN (RSA|EC|OPENSSH) PRIVATE KEY|ghp_[A-Za-z0-9]{36}|sk-[A-Za-z0-9]{20,}' 2>/dev/null || true)
+          if [ -n "$matches" ]; then
+            echo "::error::Potential secret detected in tracked files:"
+            echo "$matches"
+            exit 1
+          fi
+          echo "No secrets or committed .env files found."
+
+  # --------------------------------------------------------------------------
+  # 4. Merge gate - the single required status check.
+  # --------------------------------------------------------------------------
+  quality-gate:
+    name: Quality gate
+    runs-on: ubuntu-latest
+    needs: [categorize, test, security]
+    if: always()
+    steps:
+      - name: Fail if any category check failed
+        if: contains(needs.*.result, 'failure')
+        shell: bash
+        run: |
+          echo "::error::One or more required checks failed:"
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< '${{ toJSON(needs) }}'
+          exit 1
+
+      - name: All checks passed
+        run: echo "All category checks passed for this pull request."
