@@ -33,7 +33,7 @@ npm run dev:client   # Vite dev server → http://localhost:5173
 npm run dev:server   # Express API       → http://localhost:4000
 ```
 
-The demo admin login is `admin` / `admin123` (shown on the sign-in screen).
+The demo admin login is `admin` / `admin123` (hidden in `client/src/features/auth/auth.constants.js`, not shown on the sign-in screen).
 
 ## Build and preview
 

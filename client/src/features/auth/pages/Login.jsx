@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { Lock, User, Eye, EyeOff, ArrowRight, LogIn, Sparkles } from "lucide-react";
-import { ADMIN_CREDENTIALS } from "@/features/auth/auth.constants.js";
+import { Lock, User, Eye, EyeOff, LogIn } from "lucide-react";
 import { useAuth } from "@/features/auth/auth.context.jsx";
 
-export default function Login() {
+export default function Login({ onForgotPassword }) {
   const { login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -26,12 +25,6 @@ export default function Login() {
         setLoading(false);
       }
     }, 450);
-  };
-
-  const fillDemo = () => {
-    setUsername(ADMIN_CREDENTIALS.username);
-    setPassword(ADMIN_CREDENTIALS.password);
-    setError(null);
   };
 
   return (
@@ -139,18 +132,11 @@ export default function Login() {
           </form>
 
           <button
-            onClick={fillDemo}
-            className="mt-4 flex w-full items-center justify-between rounded-xl border border-dashed border-brand-200 bg-brand-50/60 px-4 py-3 text-left transition hover:border-brand-300 hover:bg-brand-50"
+            type="button"
+            onClick={onForgotPassword}
+            className="mt-4 flex w-full items-center justify-center text-sm font-semibold text-brand-600 transition hover:text-brand-700"
           >
-            <span>
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-brand-700">
-                <Sparkles size={12} /> Demo credentials
-              </span>
-              <span className="mt-0.5 block font-mono text-sm text-slate-600">
-                {ADMIN_CREDENTIALS.username} / {ADMIN_CREDENTIALS.password}
-              </span>
-            </span>
-            <ArrowRight size={16} className="text-brand-500" />
+            Forgot password?
           </button>
         </div>
 

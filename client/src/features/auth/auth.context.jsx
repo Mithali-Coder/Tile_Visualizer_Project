@@ -27,7 +27,7 @@ export function AuthProvider({ children }) {
       setUser({ username: username.trim(), loginAt: Date.now() });
       return { ok: true };
     }
-    return { ok: false, message: "Invalid credentials. Try the demo login below." };
+    return { ok: false, message: "Invalid username or password." };
   };
 
   const logout = () => setUser(null);
