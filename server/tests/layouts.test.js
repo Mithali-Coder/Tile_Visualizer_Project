@@ -74,7 +74,7 @@ test("invalid room id is rejected", async (t) => {
 });
 
 test("validateLayout rejects bad configs", async () => {
-  const { validateLayout } = await import("../../shared/schemas/layout.js");
+  const { validateLayout } = await import("@tile-visualizer/shared/schemas/layout.js");
   const { ok, errors } = validateLayout({ id: "", name: "x", type: "nope", status: "live", zones: [] });
   assert.equal(ok, false);
   assert.ok(errors.length > 0);

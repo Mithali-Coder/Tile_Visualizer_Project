@@ -47,9 +47,8 @@ the backend integration phase — none are implemented yet.
 
 ### Photo layout persistence (2-layer model)
 
-Implemented in Phase 2. A full room config (all zones together) is saved/fetched
-as one document. Body shape matches the canonical schema in
-`shared/schemas/layout.js`.
+A full room config (all zones together) is saved/fetched as one document.
+Body shape matches the canonical schema in `shared/schemas/layout.js`.
 
 | Method | Path                    | Purpose                                        |
 | ------ | ----------------------- | ---------------------------------------------- |

@@ -54,6 +54,9 @@ jobs:
               - '**/prisma/**'
               - '**/drizzle/**'
               - '**/*.sql'
+              - 'shared/schemas/**'
+              - 'server/src/models/**'
+              - 'server/src/config/db.js'
             chore:
               - 'docs/**'
               - 'scripts/**'
@@ -138,10 +141,24 @@ jobs:
             const draft = validateLayout({ id: 'x', name: 'x', type: 'photo', status: 'draft', zones: [] });
             const pub = validateLayout({ id: 'x', name: 'x', type: 'photo', status: 'published', zones: [] });
             if (!draft.ok || pub.ok) {
-              console.error('Data-layer schema validation regression');
+              console.error('Layout schema validation regression');
               process.exit(1);
             }
-            console.log('Data-layer schema validation passed (no database configured yet).');
+            console.log('Layout schema validation passed.');
+          "
+          node --input-type=module -e "
+            import { AdminSchema, TileSchema, CategoryTemplateSchema } from './shared/schemas/index.js';
+            const oid = '0123456789abcdef01234567';
+            const checks = [
+              AdminSchema.safeParse({ name: 'A', email: 'a@b.c', password: 'password123', role: 'superadmin' }).success,
+              TileSchema.safeParse({ title: 'X', category: oid, properties: {} }).success,
+              CategoryTemplateSchema.safeParse({ name: 'F', room: 'kitchen', type: 'floor' }).success,
+            ];
+            if (!checks.every(Boolean)) {
+              console.error('Zod schema validation regression');
+              process.exit(1);
+            }
+            console.log('Zod schema validation passed (no MongoDB configured in CI).');
           "
 
       - name: Chore - package-lock in sync

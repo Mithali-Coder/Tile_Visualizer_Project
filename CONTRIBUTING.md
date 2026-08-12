@@ -40,7 +40,7 @@ node --version
 npm --version
 ```
 
-> **No database is required.** The monorepo currently uses **local disk storage** for layout configs and assets (see [Architecture Overview](#2-architecture-overview)). A PostgreSQL/SQLite/MongoDB dependency will only be introduced if a future phase moves persistence into a real DB.
+> **No database is required for local development.** Layout configs and assets are stored on local disk under `server/storage/` (gitignored). An **optional MongoDB** layer exists since Phase 1: set `MONGODB_URI` in `server/.env` to enable the Mongoose models (`Admin`, `Tile`, `CategoryTemplate`, `Project`) and run `npm run db:seed` to populate it.
 
 ### Installation
 
@@ -105,6 +105,7 @@ The demo login is `admin` / `admin123` (shown on the sign-in screen). **Do not r
 | `PORT` | server | No | `4000` | HTTP port for the Express API. |
 | `NODE_ENV` | server | No | `development` | Runtime environment. |
 | `STORAGE_ROOT` | server | No | `storage` | Directory root for layout configs + assets on disk (see `server/src/config/env.js`). |
+| `MONGODB_URI` | server | No | *(none)* | MongoDB connection string. Unset → disk storage only (with a warning); set → enables the Mongoose layer + `npm run db:seed`. |
 
 > **Planned (not yet implemented):** future backend modules will add variables such as `JWT_SECRET`, `DATABASE_URL`, and `STORAGE_BUCKET_URL` once admin auth, a real DB, and cloud storage land. Do not add `.env` entries today unless the code reads them.
 
@@ -174,7 +175,7 @@ The project is an **npm-workspaces monorepo** with three co-located packages plu
 
 4. **Occlusion is owned by the foreground layer.** There is no live segmentation or furniture-exclusion logic. `foreground.png` (furniture/objects only, transparent elsewhere) is always drawn on top, unconditionally.
 
-5. **Local disk storage behind an S3-ready interface.** `LayoutStorage` abstracts persistence; swapping the disk backend for cloud object storage should not touch routes or the client. No database and no cloud/CDN are configured yet.
+5. **Local disk storage behind an S3-ready interface.** `LayoutStorage` abstracts persistence; swapping the disk backend for cloud object storage should not touch routes or the client. An optional MongoDB layer exists since Phase 1 (models + seed, see `server/src/config/db.js`), but no CRUD API uses it yet. No cloud/CDN is configured.
 
 6. **Client-side canvas composition today; server-side pre-rendering is a future option.** Rendering happens in the browser. A server-side room pre-render could be added later for PDF/image export (see [section 10](#10-future-roadmap)).
 
@@ -199,7 +200,6 @@ tile-visualizer/
 |   |   +-- favicon.svg
 |   +-- src/
 |   |   +-- app/                        # App shell + providers (App.jsx, providers.jsx)
-|   |   +-- components/                 # reusable presentational UI (scaffold)
 |   |   +-- features/                   # feature-based organization
 |   |   |   +-- auth/                   # Login page, auth.context, hardcoded admin creds
 |   |   |   +-- dashboard/              # Dashboard page (shell of the app)
@@ -207,7 +207,7 @@ tile-visualizer/
 |   |   |   +-- visualizer/             # RoomCanvas, PhotoViewer, compositor libs
 |   |   |   +-- rooms/                  # RoomSelector, rooms + layouts data, useLayout
 |   |   |   +-- layouts/                # LayoutEditor + geometry helpers
-|   |   +-- hooks/  lib/  services/  store/  constants/  types/  utils/  styles/
+|   |   +-- lib/  services/  store/  styles/
 |   |   +-- lib/textures.js             # procedural SVG texture generator
 |   |   +-- services/layouts.api.js     # fetch wrapper for /api/layouts
 |   |   +-- store/workspace.context.jsx # global workspace state (localStorage)
@@ -216,33 +216,45 @@ tile-visualizer/
 |   +-- package.json  tailwind.config.js  vite.config.js
 +-- server/                             # Backend API (Express 4)
 |   +-- src/
-|   |   +-- config/env.js               # PORT / NODE_ENV / STORAGE_ROOT
+|   |   +-- config/env.js               # PORT / NODE_ENV / STORAGE_ROOT / MONGODB_URI
+|   |   +-- config/db.js                # optional MongoDB connection
 |   |   +-- routes/health.js            # GET /health
 |   |   +-- routes/layouts.js           # GET/POST /api/layouts(/::roomId), asset serving
 |   |   +-- services/layout-storage.js  # disk persistence + mask rasterization (sharp)
-|   |   +-- controllers/ middleware/ repositories/ models/ validators/ utils/
-|   |   |                               # scaffolded (`.gitkeep`) for future modules
+|   |   +-- models/                     # Mongoose models (Admin, Tile, CategoryTemplate, Project)
+|   |   +-- scripts/seed.js             # MongoDB seed (admin, room templates, tile catalogue)
 |   |   +-- app.js                      # Express wiring + routers
 |   |   +-- server.js                   # entry point
 |   +-- tests/
 |   |   +-- integration.test.js         # HTTP-level API tests (node:test)
 |   |   +-- layouts.test.js             # LayoutStorage unit tests
+|   |   +-- models.test.js              # Mongoose model registration (no DB needed)
+|   |   +-- schemas.test.js             # shared Zod schema checks
 |   +-- storage/                        # gitignored runtime layout storage
 |   +-- .env.example
 |   +-- package.json
 +-- shared/                             # Cross-app types, constants, schemas, utilities
 |   +-- schemas/layout.js               # canonical Room/Zone/Plane schema + validateLayout
-|   +-- constants/  types/  utils/      # scaffold
+|   +-- schemas/id.schema.js            # MongoDB ObjectId schema
+|   +-- schemas/auth.schema.js          # admin + login schemas
+|   +-- schemas/tile.schema.js          # tile schema
+|   +-- schemas/template.schema.js      # category template schema
+|   +-- schemas/project.schema.js       # project schema
+|   +-- schemas/index.js                # barrel + validate() helper
+|   +-- scripts/smoke.mjs               # shared build smoke test
 |   +-- package.json
-+-- docs/                               # architecture, setup, structure, API, PRD, audit
-+-- scripts/                            # dev / maintenance scripts (scaffold)
-+-- tests/                              # cross-app integration tests (scaffold)
++-- docs/                               # architecture, setup, structure, API, PRD
++-- scripts/                            # dev / maintenance scripts
++-- tests/                              # cross-app integration tests
 +-- .env.example  .gitignore  README.md
 +-- package.json                        # npm workspaces + root scripts
 +-- package-lock.json
 ```
 
-> Empty directories are tracked with `.gitkeep` as scaffolding and should be filled as features are added. **Do not move feature-specific code into generic shared folders.**
+> Directories are only tracked when they contain files — no `.gitkeep`
+> placeholders for future modules. Create a directory (and its files) when the
+> module is actually implemented. **Do not move feature-specific code into
+> generic shared folders.**
 
 ## 3. Tech Stack
 
@@ -254,19 +266,19 @@ tile-visualizer/
 | **Icons** | lucide-react | catalogue / dashboard components |
 | **Rendering engine** | Canvas 2D API (2-layer compositor: homography warp + polygon masks) + CSS 3D transforms (PhotoViewer) | `client/src/features/visualizer/` |
 | **Texture generation** | Procedural SVG data-URIs (marble, granite, terrazzo, wood, concrete, slate, solid) | `client/src/lib/textures.js` |
-| **ML tooling (installed)** | `@huggingface/transformers` (declared; not wired into active flows) | `client/package.json` |
 | **Backend framework** | Express 4 | `server/src/` |
 | **File uploads** | multer 2 (memory storage, 25 MB limit) | `server/src/routes/layouts.js` |
 | **Image processing** | sharp (image metadata + SVG→PNG mask rasterization) | `server/src/services/layout-storage.js` |
 | **Env config** | dotenv | `server/src/config/env.js` |
-| **ML image APIs (installed)** | `replicate` (declared; not wired into active flows) | `server/package.json` |
-| **Persistence** | Local disk (no ORM, no DB) | `server/src/services/layout-storage.js` |
+| **Persistence** | Local disk default; optional MongoDB via mongoose | `server/src/services/layout-storage.js`, `server/src/config/db.js` |
+| **Validation** | Zod schemas in `shared/schemas/` | `shared/schemas/index.js` |
 | **Shared contracts** | Plain-JS canonical schema + `validateLayout` | `shared/schemas/layout.js` |
 | **Testing** | Node's built-in `node:test` + `node:assert/strict` (no third-party runner) | `server/tests/` |
 | **Dev orchestration** | `concurrently` (root `npm run dev`) | root `package.json` |
 | **CI/CD** | GitHub Actions (`.github/workflows/ci.yml`) — PR category checks + quality gate | `.github/workflows/` |
 
-> **JavaScript, not TypeScript.** All packages are plain ESM (`"type": "module"`). The `shared/types/` and `client/src/types/` folders are scaffolding; no `.ts` files or type-check step exist today.
+> **JavaScript, not TypeScript.** All packages are plain ESM (`"type": "module"`).
+> No `.ts` files, type-check step, or dedicated types folders exist today.
 
 ---
 
@@ -590,7 +602,7 @@ Open a PR against **`develop`** and fill in `.github/pull_request_template.md` c
 | -------- | ------------ | ---------- |
 | `frontend` | `client/**` | Vite production build (`npm run build`) |
 | `backend` | `server/**`, `shared/**` | `node:test` suite (`npm test`) |
-| `database` | migrations / `*.sql` / prisma / drizzle | data-layer schema validation |
+| `database` | `shared/schemas/**`, `server/src/models/**`, `server/src/config/db.js` | Zod + layout schema validation (no MongoDB in CI) |
 | `chore` | docs, scripts, tests, `.github`, root config | lockfile sync + local doc-link integrity |
 | all PRs | — | security scan (committed `.env`, secret patterns) |
 
@@ -645,11 +657,11 @@ Then manually check the relevant area (mirroring the PR template's checklist):
 
 ## 10. Future Roadmap
 
-Prioritized from `docs/prd.md`, `docs/api.md`, and `docs/phase0-codebase-audit.md`. Contributions in these areas should first raise an issue so scope and approach are agreed.
+Prioritized from `docs/prd.md` and `docs/api.md`. Contributions in these areas should first raise an issue so scope and approach are agreed.
 
 1. **Backend admin authentication.** Move the hardcoded `admin`/`admin123` credentials out of the client bundle (`features/auth/auth.constants.js`) into real server-side auth (`POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`) with roles (Admin vs Client) and token handling.
 2. **Tile catalogue management.** CRUD APIs for the catalogue (`/api/tiles`), category/dimension/format management, and texture upload (`/api/uploads`), replacing static data in `client/src/features/catalogue/data/tiles.js`.
-3. **Persistence & cloud storage.** Introduce a real database (or keep the S3-ready `LayoutStorage` interface pointed at cloud object storage) for layouts, assets, saved visualizer configs, presentation boards, projects, and customers (`/api/saved-configs`, `/api/presentation-boards`, `/api/projects`, `/api/customers`).
+3. **Persistence & cloud storage.** Phase 1 laid the MongoDB foundation (models + seed, see `server/src/models/`), but no CRUD API uses it yet. Build repositories/controllers and the `/api/projects`, `/api/customers` endpoints, or point the S3-ready `LayoutStorage` interface at cloud object storage for layouts and assets.
 4. **Pattern & grout rendering.** Implement compositor-level support for the patterns already defined in `pattern-labels.js` (brick, diagonal, herringbone, hexagon) plus configurable grout thickness/color instead of baking grout into textures.
 5. **Export & presentation.** PDF/image export of rendered rooms (server-side pre-render), full-screen/kiosk presentation mode for in-store demos, and side-by-side tile comparison.
 6. **CI hardening.** Wire up linting (ESLint/Prettier) and client-side tests so the category workflow can run richer checks; add deployments. Note the branch protection rule already in place on `develop`.

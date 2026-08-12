@@ -8,11 +8,11 @@ pick a room layout, and apply tiles to floors, walls, and accent walls in real t
 This is an npm-workspaces monorepo:
 
 - `client/` — React 18 + Vite + Tailwind CSS frontend (the app itself)
-- `server/` — Express API (scaffolded; `/health` only for now)
-- `shared/` — future cross-app types, constants, schemas, and utilities
+- `server/` — Express API (`/health`, `/api/layouts/*`, optional MongoDB via mongoose)
+- `shared/` — cross-app schemas shared by client and server (`schemas/layout.js`, Zod DTOs)
 - `docs/` — architecture, setup, structure, and API documentation
 - `scripts/` — development and maintenance scripts
-- `tests/` — cross-app integration tests (placeholder)
+- `tests/` — cross-app integration tests
 
 ## Getting started
 
@@ -34,10 +34,18 @@ npm run build
 
 # Preview the production build
 npm run preview
+
+# Run the server test suite (node:test)
+npm test
+
+# Seed MongoDB (requires MONGODB_URI in server/.env)
+npm run db:seed
 ```
 
-The demo login is shown on the sign-in screen (`admin` / `admin123`).
-Do not rely on these hardcoded credentials in production — see `docs/architecture.md`.
+> **Note on credentials:** the demo admin credentials are hardcoded on the
+> client (`client/src/features/auth/auth.constants.js`) and hidden from the
+> sign-in screen. Do not rely on these hardcoded credentials in production —
+> see `docs/architecture.md`.
 
 ## Environment variables
 
@@ -45,7 +53,7 @@ Each workspace has its own `.env.example`. Copy one to `.env` in that workspace
 and fill in real values. No `.env` files are committed.
 
 - `client/.env.example` — `VITE_API_URL` (used once the server is wired up)
-- `server/.env.example` — `PORT`, `NODE_ENV`
+- `server/.env.example` — `PORT`, `NODE_ENV`, `MONGODB_URI` (optional)
 
 ## Documentation
 

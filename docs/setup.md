@@ -59,11 +59,28 @@ cp server/.env.example server/.env
 | `VITE_API_URL`  | client    | `http://localhost:4000` | Base URL of the backend API (future) |
 | `PORT`          | server    | `4000`            | HTTP port for the API                    |
 | `NODE_ENV`      | server    | `development`     | Runtime environment                      |
+| `MONGODB_URI`   | server    | *(none)*          | MongoDB connection string (optional locally; enables the Phase 1 Mongoose layer) |
 
-## Tests and linting
+If `MONGODB_URI` is unset, the API runs on disk storage (`server/storage/`)
+as before. Set it to connect MongoDB and seed the database:
 
-No automated tests or linter are configured yet. The root `npm test` is a
-placeholder; test homes are `tests/` (cross-app) and `server/tests/`.
+```bash
+cd server && npm run seed   # or from the root: npm run db:seed
+```
+
+## Tests
+
+Server tests use Node's built-in `node:test` runner (no third-party framework):
+
+```bash
+npm test   # runs npm test --workspace server → node --test tests/*.test.js
+```
+
+The suites live in `server/tests/`: `layouts.test.js` (LayoutStorage unit
+tests), `integration.test.js` (HTTP-level API tests), `models.test.js`
+(Mongoose model registration) and `schemas.test.js` (shared Zod schemas). All
+run without a live MongoDB. There is no linter or type-check step configured
+yet.
 
 ## Wiring the client to the API (future)
 

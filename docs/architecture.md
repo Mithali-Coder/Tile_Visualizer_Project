@@ -88,15 +88,26 @@ layout persistence backend are the only compositing/masking paths.
 
 ### Server (`server/`)
 
-Minimal Express app (`app.js` / `server.js`) with `GET /health`. The directory
-scaffold (`controllers`, `services`, `repositories`, `models`, `validators`,
-`middleware`, `utils`) is prepared for future modules. Feature routers are
-mounted in `app.js` behind TODO markers.
+Express app (`app.js` / `server.js`) exposing `GET /`, `GET /health`, and the
+`/api/layouts/*` persistence router (list, fetch, save, serve assets) backed by
+`services/layout-storage.js` (multer + sharp).
+
+**Phase 1 foundation (MongoDB):** `config/db.js` connects to MongoDB when
+`MONGODB_URI` is set (skipped with a warning otherwise, so local disk storage
+remains the default). Mongoose models live in `models/` — `Admin`, `Tile`,
+`CategoryTemplate`, `Project` — and `scripts/seed.js` seeds an admin, room
+category templates, and the tile catalogue (`npm run db:seed`). Future modules
+(controllers, middleware, repositories, validators, utils) will be added under
+`server/src/` as they are implemented.
 
 ### Shared (`shared/`)
 
-Empty workspace reserved for framework-agnostic types, constants, schemas, and
-utilities that both `client` and `server` can import via the `@shared/*` alias.
+Framework-agnostic code that both `client` and `server` can import. It holds
+the canonical layout schema (`schemas/layout.js`, plain ESM, no deps) and the
+Zod validation schemas + barrel (`schemas/index.js` with `auth`, `tile`,
+`template`, `project`, `id`). The client imports via the `@shared/*` alias
+(`vite.config.js` / `jsconfig.json`); the server imports the linked workspace
+package `@tile-visualizer/shared` directly (npm workspaces symlink).
 
 ## Data flow (current phase)
 

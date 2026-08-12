@@ -1,0 +1,18 @@
+import { z } from "zod";
+
+/** Admin roles per the MongoDB `admins` collection spec. */
+export const ADMIN_ROLES = ["admin", "superadmin"];
+
+/** Admin document shape (shared contract for seeding + API DTOs). */
+export const AdminSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("A valid email is required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  role: z.enum(ADMIN_ROLES).default("admin"),
+});
+
+/** Login request body. */
+export const AdminLoginSchema = z.object({
+  email: z.string().email("A valid email is required"),
+  password: z.string().min(1, "Password is required"),
+});

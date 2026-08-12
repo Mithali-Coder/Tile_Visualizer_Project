@@ -103,7 +103,7 @@ test("POST JSON-only saves config", async () => {
 });
 
 test("validateLayout rejects published-empty-zones", async () => {
-  const { validateLayout } = await import("../../shared/schemas/layout.js");
+  const { validateLayout } = await import("@tile-visualizer/shared/schemas/layout.js");
   const draft = { id: "x", name: "x", type: "photo", status: "draft", zones: [] };
   const pub = { id: "x", name: "x", type: "photo", status: "published", zones: [] };
   assert.equal(validateLayout(draft).ok, true);

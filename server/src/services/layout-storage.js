@@ -2,7 +2,7 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import sharp from "sharp";
-import { validateLayout } from "../../../shared/schemas/layout.js";
+import { validateLayout } from "@tile-visualizer/shared/schemas/layout.js";
 
 const ROOM_ID_RE = /^[a-z0-9][a-z0-9-_]*$/i;
 const FILENAME_RE = /^[a-z0-9._-]+\.(png|jpg|jpeg|webp)$/i;
