@@ -1,4 +1,4 @@
-const api = (path, { method = "GET", body, json = true } = {}) => {
+const api = (path, { method = "GET", body, json = true, token } = {}) => {
   const opts = { method, headers: {} };
   if (body != null) {
     if (body instanceof FormData) {
@@ -7,6 +7,9 @@ const api = (path, { method = "GET", body, json = true } = {}) => {
       opts.headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
     }
+  }
+  if (token) {
+    opts.headers.Authorization = `Bearer ${token}`;
   }
   return fetch(path, opts)
     .catch((e) => {
@@ -57,17 +60,28 @@ export function fetchLayout(roomId) {
  * @param {Record<string, File|Blob>} [opts.masks]   { floor: File, wall: File, … }
  */
 export function saveLayout(roomId, config, opts = {}) {
-  if (opts.background || opts.foreground || opts.masks) {
+  // Saving requires an admin session; pass opts.token (from useAuth()).
+  const { token, ...uploads } = opts;
+  if (uploads.background || uploads.foreground || uploads.masks) {
     const form = new FormData();
     form.append("config", JSON.stringify(config));
-    if (opts.background) form.append("background", opts.background);
-    if (opts.foreground) form.append("foreground", opts.foreground);
-    if (opts.masks) {
-      for (const [zoneId, file] of Object.entries(opts.masks)) form.append(zoneId, file);
+    if (uploads.background) form.append("background", uploads.background);
+    if (uploads.foreground) form.append("foreground", uploads.foreground);
+    if (uploads.masks) {
+      for (const [zoneId, file] of Object.entries(uploads.masks)) form.append(zoneId, file);
     }
-    return api(`/api/layouts/${encodeURIComponent(roomId)}`, { method: "POST", body: form, json: false });
+    return api(`/api/layouts/${encodeURIComponent(roomId)}`, {
+      method: "POST",
+      body: form,
+      json: false,
+      token,
+    });
   }
-  return api(`/api/layouts/${encodeURIComponent(roomId)}`, { method: "POST", body: config });
+  return api(`/api/layouts/${encodeURIComponent(roomId)}`, {
+    method: "POST",
+    body: config,
+    token,
+  });
 }
 
 export function layoutAssetUrl(roomId, assetPath) {

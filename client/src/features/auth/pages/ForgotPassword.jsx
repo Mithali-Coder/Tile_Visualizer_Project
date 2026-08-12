@@ -1,21 +1,23 @@
 import { useState } from "react";
 import { Mail, ArrowLeft, Send, CheckCircle2, KeyRound } from "lucide-react";
 import { forgotPassword } from "@/features/auth/services/auth.api.js";
+import { validateForgotPasswordEmail } from "@/features/auth/lib/validate-field.js";
 
 export default function ForgotPassword({ onBack }) {
   const [email, setEmail] = useState("");
+  const [fieldError, setFieldError] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!email.trim()) {
-      setError("Please enter your registered email address.");
-      return;
-    }
-    setLoading(true);
     setError(null);
+    const err = validateForgotPasswordEmail(email);
+    setFieldError(err);
+    if (err) return;
+
+    setLoading(true);
     try {
       await forgotPassword(email.trim());
       setSent(true);
@@ -95,13 +97,20 @@ export default function ForgotPassword({ onBack }) {
                     <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="email"
-                      className="input-field pl-10"
+                      className={`input-field pl-10 ${
+                        fieldError ? "border-red-300 focus:border-red-500 focus:ring-red-500/25" : ""
+                      }`}
                       placeholder="Enter your email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (fieldError) setFieldError(null);
+                      }}
+                      onBlur={() => setFieldError(validateForgotPasswordEmail(email))}
                       autoComplete="email"
                     />
                   </div>
+                  {fieldError && <p className="mt-1.5 text-xs text-red-600">{fieldError}</p>}
                 </div>
 
                 {error && (

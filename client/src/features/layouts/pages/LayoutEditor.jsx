@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { fetchLayout, saveLayout } from "@/services/layouts.api.js";
+import { useAuth } from "@/features/auth/auth.context.jsx";
 import { getLayout } from "@/features/rooms/data/layouts.js";
 import {
   validateLayout,
@@ -96,6 +97,7 @@ function drawHandles(ctx, pts, color) {
 }
 
 export default function LayoutEditor({ layoutId = "kitchen-iridium", onClose }) {
+  const { token } = useAuth();
   const [layout, setLayout] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
@@ -350,7 +352,7 @@ export default function LayoutEditor({ layoutId = "kitchen-iridium", onClose }) 
         }
       }
 
-      const opts = {};
+      const opts = { token };
       const bg = await fileFromClientAsset(config.background);
       const fg = await fileFromClientAsset(config.foreground);
       if (bg) opts.background = bg;

@@ -14,6 +14,12 @@ const adminSchema = new mongoose.Schema(
     },
     password: { type: String, required: true, select: false },
     role: { type: String, enum: ADMIN_ROLES, default: "admin" },
+    // Password reset flow: single-use, expiring, hashed token (never store the raw token).
+    resetTokenHash: { type: String, select: false, default: null },
+    resetTokenExpiresAt: { type: Date, select: false, default: null },
+    // Bumped on logout and on password reset so previously issued JWTs stop
+    // validating (requireAuth checks this against the token's own copy).
+    tokenVersion: { type: Number, default: 0, select: false },
   },
   { timestamps: true }
 );
@@ -21,6 +27,9 @@ const adminSchema = new mongoose.Schema(
 adminSchema.set("toJSON", {
   transform(_doc, ret) {
     delete ret.password;
+    delete ret.resetTokenHash;
+    delete ret.resetTokenExpiresAt;
+    delete ret.tokenVersion;
     ret.id = ret._id.toString();
     delete ret._id;
     delete ret.__v;

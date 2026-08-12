@@ -4,6 +4,7 @@ import multer from "multer";
 import sharp from "sharp";
 import { layoutStorage } from "../services/layout-storage.js";
 import { sanitizeRoomId } from "../services/layout-storage.js";
+import { requireAuth, requireRole } from "../middleware/auth.middleware.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -35,7 +36,12 @@ router.get("/:roomId/assets/*", async (req, res) => {
   }
 });
 
-router.post("/:roomId", upload.any(), async (req, res) => {
+router.post(
+  "/:roomId",
+  requireAuth,
+  requireRole("admin", "superadmin"),
+  upload.any(),
+  async (req, res) => {
   try {
     const { roomId } = req.params;
     sanitizeRoomId(roomId);
@@ -100,6 +106,7 @@ router.post("/:roomId", upload.any(), async (req, res) => {
     console.error("save layout error:", e);
     res.status(400).json({ error: e.message });
   }
-});
+  }
+);
 
 export default router;

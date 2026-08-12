@@ -1,31 +1,32 @@
 import { useState } from "react";
 import { Lock, Eye, EyeOff, CheckCircle2, ArrowLeft, ShieldCheck } from "lucide-react";
 import { resetPassword } from "@/features/auth/services/auth.api.js";
+import { validateNewPassword, validateConfirmPassword } from "@/features/auth/lib/validate-field.js";
 
 export default function ResetPassword({ token, onDone }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
+  const validate = () => {
+    const errors = {
+      password: validateNewPassword(password),
+      confirm: validateConfirmPassword(password, confirm),
+    };
+    setFieldErrors(errors);
+    return !errors.password && !errors.confirm;
+  };
+
   const submit = async (e) => {
     e.preventDefault();
-    if (!password) {
-      setError("Please enter a new password.");
-      return;
-    }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters long.");
-      return;
-    }
-    if (password !== confirm) {
-      setError("Passwords do not match.");
-      return;
-    }
-    setLoading(true);
     setError(null);
+    if (!validate()) return;
+
+    setLoading(true);
     try {
       await resetPassword(token, password);
       setDone(true);
@@ -104,10 +105,22 @@ export default function ResetPassword({ token, onDone }) {
                     <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type={showPw ? "text" : "password"}
-                      className="input-field pl-10 pr-10"
+                      className={`input-field pl-10 pr-10 ${
+                        fieldErrors.password ? "border-red-300 focus:border-red-500 focus:ring-red-500/25" : ""
+                      }`}
                       placeholder="Enter new password"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setPassword(value);
+                        setFieldErrors((f) => ({
+                          ...f,
+                          password: null,
+                          // Re-check confirm as the password changes, once the user has typed one.
+                          confirm: confirm ? validateConfirmPassword(value, confirm) : f.confirm,
+                        }));
+                      }}
+                      onBlur={() => setFieldErrors((f) => ({ ...f, password: validateNewPassword(password) }))}
                       autoComplete="new-password"
                     />
                     <button
@@ -119,6 +132,9 @@ export default function ResetPassword({ token, onDone }) {
                       {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
+                  {fieldErrors.password && (
+                    <p className="mt-1.5 text-xs text-red-600">{fieldErrors.password}</p>
+                  )}
                 </div>
 
                 <div>
@@ -129,13 +145,24 @@ export default function ResetPassword({ token, onDone }) {
                     <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type={showPw ? "text" : "password"}
-                      className="input-field pl-10"
+                      className={`input-field pl-10 ${
+                        fieldErrors.confirm ? "border-red-300 focus:border-red-500 focus:ring-red-500/25" : ""
+                      }`}
                       placeholder="Re-enter new password"
                       value={confirm}
-                      onChange={(e) => setConfirm(e.target.value)}
+                      onChange={(e) => {
+                        setConfirm(e.target.value);
+                        if (fieldErrors.confirm) setFieldErrors((f) => ({ ...f, confirm: null }));
+                      }}
+                      onBlur={() =>
+                        setFieldErrors((f) => ({ ...f, confirm: validateConfirmPassword(password, confirm) }))
+                      }
                       autoComplete="new-password"
                     />
                   </div>
+                  {fieldErrors.confirm && (
+                    <p className="mt-1.5 text-xs text-red-600">{fieldErrors.confirm}</p>
+                  )}
                 </div>
 
                 {error && (

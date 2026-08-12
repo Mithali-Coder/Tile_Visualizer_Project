@@ -1,30 +1,37 @@
 import { useState } from "react";
-import { Lock, User, Eye, EyeOff, LogIn } from "lucide-react";
+import { Lock, Mail, Eye, EyeOff, LogIn } from "lucide-react";
 import { useAuth } from "@/features/auth/auth.context.jsx";
+import { validateLoginEmail, validateLoginPassword } from "@/features/auth/lib/validate-field.js";
 
 export default function Login({ onForgotPassword }) {
   const { login } = useAuth();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const submit = (e) => {
+  const validate = () => {
+    const errors = {
+      email: validateLoginEmail(email),
+      password: validateLoginPassword(password),
+    };
+    setFieldErrors(errors);
+    return !errors.email && !errors.password;
+  };
+
+  const submit = async (e) => {
     e.preventDefault();
-    if (!username.trim() || !password) {
-      setError("Please enter both username and password.");
-      return;
-    }
-    setLoading(true);
     setError(null);
-    setTimeout(() => {
-      const res = login(username, password);
-      if (!res.ok) {
-        setError(res.message);
-        setLoading(false);
-      }
-    }, 450);
+    if (!validate()) return;
+
+    setLoading(true);
+    const res = await login(email, password);
+    if (!res.ok) {
+      setError(res.message);
+    }
+    setLoading(false);
   };
 
   return (
@@ -66,18 +73,28 @@ export default function Login({ onForgotPassword }) {
           <form onSubmit={submit} className="space-y-4">
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Username
+                Email
               </label>
               <div className="relative">
-                <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
-                  className="input-field pl-10"
-                  placeholder="Enter username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  autoComplete="username"
+                  type="email"
+                  className={`input-field pl-10 ${
+                    fieldErrors.email ? "border-red-300 focus:border-red-500 focus:ring-red-500/25" : ""
+                  }`}
+                  placeholder="Enter email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: null }));
+                  }}
+                  onBlur={() => setFieldErrors((f) => ({ ...f, email: validateLoginEmail(email) }))}
+                  autoComplete="email"
                 />
               </div>
+              {fieldErrors.email && (
+                <p className="mt-1.5 text-xs text-red-600">{fieldErrors.email}</p>
+              )}
             </div>
 
             <div>
@@ -88,10 +105,16 @@ export default function Login({ onForgotPassword }) {
                 <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type={showPw ? "text" : "password"}
-                  className="input-field pl-10 pr-10"
+                  className={`input-field pl-10 pr-10 ${
+                    fieldErrors.password ? "border-red-300 focus:border-red-500 focus:ring-red-500/25" : ""
+                  }`}
                   placeholder="Enter password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (fieldErrors.password) setFieldErrors((f) => ({ ...f, password: null }));
+                  }}
+                  onBlur={() => setFieldErrors((f) => ({ ...f, password: validateLoginPassword(password) }))}
                   autoComplete="current-password"
                 />
                 <button
@@ -103,6 +126,9 @@ export default function Login({ onForgotPassword }) {
                   {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              {fieldErrors.password && (
+                <p className="mt-1.5 text-xs text-red-600">{fieldErrors.password}</p>
+              )}
             </div>
 
             {error && (
